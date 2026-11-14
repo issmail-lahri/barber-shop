@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>صالون الأناقة | حجز موعد</title>
+<style>
+:root{--ink:#14283f;--blue:#2447b8;--brass:#a9792b;--paper:#f6f6f3;--line:#d9dbe0;--red:#c0392b;--green:#177a42}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Tahoma,system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.7}
+.pole{height:14px;background:repeating-linear-gradient(-45deg,var(--red) 0 14px,#fff 14px 28px,var(--blue) 28px 42px,#fff 42px 56px)}
+header,main{max-width:640px;margin:auto;padding:0 20px}
+header{padding-top:36px;padding-bottom:8px}
+h1{font-size:2rem;margin:0 0 6px;line-height:1.3}
+header p{margin:0;color:#4a5a70}
+h2{font-size:1.2rem;margin:32px 0 8px}
+.svc{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.svc input{width:22px;height:22px;accent-color:var(--blue)}
+.svc b{flex:1;font-weight:600}
+.svc small{color:#5b6b80;display:block;font-weight:400}
+.price{font-weight:700;white-space:nowrap}
+label.f{display:block;margin:14px 0 6px;font-weight:600}
+input[type=text],input[type=date]{width:100%;padding:14px;font:inherit;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.slots button{padding:12px 0;font:inherit;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:6px;cursor:pointer}
+.slots button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.note{color:#5b6b80;margin:6px 0 0}
+.total{display:flex;justify-content:space-between;font-size:1.15rem;font-weight:700;margin:24px 0 12px}
+.send{width:100%;padding:16px;font:inherit;font-weight:700;font-size:1.05rem;border:0;border-radius:8px;background:var(--green);color:#fff;cursor:pointer}
+.msg{color:var(--red);min-height:1.6em;margin:8px 0}
+footer{border-top:1px solid var(--line);margin-top:40px;padding:24px 20px;text-align:center;color:#4a5a70;font-size:.95rem}
+.links{display:flex;gap:12px;justify-content:center;margin:0 0 14px}
+.links a{padding:12px 18px;border:1px solid var(--ink);border-radius:8px;color:var(--ink);text-decoration:none;font-weight:600}
+:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="pole" aria-hidden="true"></div>
+<header>
+  <h1 id="shopName">صالون الأناقة</h1>
+  <p>اختار الخدمة والوقت، وتوصلنا الرسالة فالواتساب باش نأكدو ليك الموعد.</p>
+</header>
+<main>
+  <h2>1. الخدمات</h2>
+  <div id="list"></div>
+
+  <h2>2. معلوماتك</h2>
+  <label class="f" for="name">الاسم</label>
+  <input type="text" id="name" autocomplete="name" placeholder="مثلا: يوسف">
+
+  <label class="f" for="date">اليوم</label>
+  <input type="date" id="date">
+
+  <label class="f">الوقت</label>
+  <div class="slots" id="slots"></div>
+  <p class="note" id="slotNote">اختار اليوم باش تبان ليك الأوقات.</p>
+
+  <div class="total"><span>المجموع</span><span id="total">0 درهم</span></div>
+  <div class="msg" id="msg" role="alert"></div>
+  <button class="send" id="send">احجز عبر واتساب</button>
+</main>
+<footer>
+  <div id="hours"></div>
+  <p class="links"><a id="call">اتصل بنا</a><a id="map" target="_blank" rel="noopener">الاتجاهات فالخريطة</a></p>
+  <div>قلعة مكونة، بوتغرار، المغرب</div>
+</footer>
+
+<script>
+// ===== غيّر هاد المعلومات فقط =====
+const CONFIG = {
+  name: "صالون الأناقة",
+  whatsapp: "212659122752",      // 212 + الرقم بلا الصفر الأول
+  map: "https://www.google.com/maps/search/?api=1&query=9VR9%2B4F2%20Bou%20Tharar",
+  open: 10, close: 21.5, step: 30, // يسد 21:30، آخر موعد 21:00 (بدل ساعة الفتح إلا كانت مختلفة)
+  closedDays: [0],                // 0 = الأحد، 5 = الجمعة ...
+  services: [
+    { n: "حلاقة الشعر", p: 40, m: 30 },
+    { n: "تقليم اللحية", p: 25, m: 20 },
+    { n: "حلاقة + لحية", p: 60, m: 45 },
+    { n: "حلاقة الأطفال", p: 30, m: 25 },
+    { n: "تنظيف الوجه", p: 50, m: 30 }
+  ]
+};
+// ==================================
+
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+let chosenTime = "";
+
+document.title = CONFIG.name + " | حجز موعد";
+$("shopName").textContent = CONFIG.name;
+const fmt = h => pad(Math.floor(h)) + ":" + pad(Math.round((h % 1) * 60));
+$("hours").textContent = "أوقات العمل: من " + fmt(CONFIG.open) + " إلى " + fmt(CONFIG.close);
+$("call").href = "tel:+" + CONFIG.whatsapp;
+$("map").href = CONFIG.map;
+
+// الخدمات
+$("list").innerHTML = CONFIG.services.map((s, i) =>
+  `<label class="svc"><input type="checkbox" value="${i}">
+   <b>${s.n}<small>حوالي ${s.m} دقيقة</small></b>
+   <span class="price">${s.p} درهم</span></label>`).join("");
+
+function selected() {
+  return [...document.querySelectorAll("#list input:checked")].map(c => CONFIG.services[c.value]);
+}
+function updateTotal() {
+  $("total").textContent = selected().reduce((a, s) => a + s.p, 0) + " درهم";
+}
+$("list").addEventListener("change", updateTotal);
+
+// التاريخ: ما نقبلوش أيام ماضية
+const now = new Date();
+const today = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+$("date").min = today;
+
+function buildSlots() {
+  const v = $("date").value;
+  chosenTime = "";
+  $("slots").innerHTML = "";
+  if (!v) return;
+  const day = new Date(v + "T00:00").getDay();
+  if (CONFIG.closedDays.includes(day)) {
+    $("slotNote").textContent = "المحل مسدود هاد النهار، اختار نهار آخر.";
+    return;
+  }
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let html = "", count = 0;
+  for (let t = CONFIG.open * 60; t < CONFIG.close * 60; t += CONFIG.step) {
+    if (v === today && t <= nowMin) continue;
+    const label = pad(Math.floor(t / 60)) + ":" + pad(t % 60);
+    html += `<button type="button" aria-pressed="false">${label}</button>`;
+    count++;
+  }
+  $("slots").innerHTML = html;
+  $("slotNote").textContent = count ? "اضغط على الوقت لي بغيتي." : "سالات الأوقات اليوم، جرب نهار آخر.";
+}
+$("date").addEventListener("change", buildSlots);
+
+$("slots").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  document.querySelectorAll("#slots button").forEach(x => x.setAttribute("aria-pressed", "false"));
+  b.setAttribute("aria-pressed", "true");
+  chosenTime = b.textContent;
+});
+
+// الإرسال إلى واتساب
+$("send").addEventListener("click", () => {
+  const name = $("name").value.trim(), date = $("date").value, list = selected();
+  const err = !list.length ? "اختار خدمة وحدة على الأقل."
+    : !name ? "كتب اسمك."
+    : !date ? "اختار اليوم."
+    : !chosenTime ? "اختار الوقت." : "";
+  $("msg").textContent = err;
+  if (err) return;
+  const total = list.reduce((a, s) => a + s.p, 0);
+  const text = "السلام عليكم، بغيت نحجز موعد:\n" +
+    "الاسم: " + name + "\n" +
+    "الخدمات: " + list.map(s => s.n).join("، ") + "\n" +
+    "المجموع: " + total + " درهم\n" +
+    "اليوم: " + date + "\n" +
+    "الوقت: " + chosenTime;
+  window.open("https://wa.me/" + CONFIG.whatsapp + "?text=" + encodeURIComponent(text), "_blank");
+});
+</script>
+</body>
+</html>
